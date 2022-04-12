@@ -2,40 +2,47 @@ import Head from 'next/head'
 import Image from 'next/image'
 
 import { useState, useEffect } from 'react';
-import { MeiliSearch } from 'meilisearch'
+import Typesense from 'typesense'
 
-const MEILI_API_KEY = '7KRanVETa7ec6c58787025f4218a24cef168f6318f4d5868ffa44fcecfb94fbe10453d32';
+const TYPESENSE_API_KEY = 'xyz';
 
-const client = new MeiliSearch({
-  host: 'http://localhost:7700',
-  headers: {
-    Authorization: `Bearer ${MEILI_API_KEY}`,
-    'Content-Type': 'application/json',
-  }
+let client = new Typesense.Client({
+  nodes: [{
+    host: 'localhost', // For Typesense Cloud use xxx.a1.typesense.net
+    port: '8108',      // For Typesense Cloud use 443
+    protocol: 'http'   // For Typesense Cloud use https
+  }],
+  apiKey: TYPESENSE_API_KEY,
+  connectionTimeoutSeconds: 2
 })
 
 export default function Home() {
-  const [movies, setMovies] = useState([]);
+  const [books, setBooks] = useState([]);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    client
-      .index("movies")
-      .search(search)
-      .then((results) => {
-        setMovies(results.hits);
-      });
+    client.collections('books')
+      .documents()
+      .search({
+        q: search,
+        query_by: 'title,authors', // what fields to search
+        sort_by: 'ratings_count:desc', // how to sort the results
+        pinned_hits: '80:1', // for result pinning
+      })
+      .then((searchResults) => {
+        setBooks(searchResults.hits);
+      })
   }, [search]);
 
   return (
     <div>
       <Head>
-        <title>Meilisearch App</title>
+        <title>Typesense App</title>
       </Head>
 
       <div className='flex max-h-screen w-full'>
-        <aside className='w-1/2 bg-purple-200 h-screen'>
-          <h1 className='mt-2 text-2xl text-center font-bold'><u>Meilisearch</u> App with Next</h1>
+        <aside className='w-1/2 bg-blue-200 h-screen'>
+          <h1 className='mt-2 text-2xl text-center font-bold'><u>Typesense</u> App with Next</h1>
           <div className='h-5/6 grid place-content-center'>
             <input
               className="border border-black px-8 py-4 rounded-lg text-2xl"
@@ -49,28 +56,34 @@ export default function Home() {
         </aside>
         <main className='overflow-y-auto w-full'>
           <div className="p-10">
-            {movies?.map((movie) => (
-              <div key={movie.id} className="max-w-sm rounded overflow-hidden shadow-lg my-6">
-                <div className="h-64 w-full relative">
-                  <Image layout="fill" objectFit='cover' src={movie.poster} alt={movie.title} />
+            {books?.map((oneBook) => {
+              const { document } = oneBook;
+              const book = document;
+              return (
+                <div key={book.id} className="max-w-sm rounded overflow-hidden shadow-lg my-6">
+                  <div className="h-64 w-full relative">
+                    <Image layout="fill" objectFit='cover' src={book.image_url} alt={book.title} />
+                  </div>
+                  <div className="px-6 py-4">
+                    <div className="font-bold text-xl mb-2">{book.title}</div>
+                    <p className="text-gray-700 text-base">
+                      <p>Rating: {book.average_rating}</p>
+                      <p>Publication: {book.publication_year}</p>
+                      <p>ID: {book.id}</p>
+                    </p>
+                  </div>
+                  <div className="px-6 pt-4 pb-2">
+                    {
+                      book.authors?.map((author) => (
+                        <span key={author} className="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">
+                          {author}
+                        </span>
+                      ))
+                    }
+                  </div>
                 </div>
-                <div className="px-6 py-4">
-                  <div className="font-bold text-xl mb-2">{movie.title}</div>
-                  <p className="text-gray-700 text-base">
-                    {movie.overview}
-                  </p>
-                </div>
-                <div className="px-6 pt-4 pb-2">
-                  {
-                    movie.genres?.map((genre) => (
-                      <span key={genre} className="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">
-                        {genre}
-                      </span>
-                    ))
-                  }
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </main>
       </div>
@@ -82,15 +95,15 @@ export default function Home() {
 /*
 
 {
-    "id": "100",
-    "title": "Lock, Stock and Two Smoking Barrels",
-    "poster": "https://image.tmdb.org/t/p/w500/8kSerJrhrJWKLk1LViesGcnrUPE.jpg",
-    "overview": "A card shark and his unwillingly-enlisted friends need to make a lot of cash quick after losing a sketchy poker match. To do this they decide to pull a heist on a small-time gang who happen to be operating out of the flat next door.",
-    "release_date": 889056000,
-    "genres": [
-        "Comedy",
-        "Crime"
-    ]
+    "authors": [
+        "Suzanne Collins"
+    ],
+    "average_rating": 4.34,
+    "id": "1",
+    "image_url": "https://images.gr-assets.com/books/1447303603m/2767052.jpg",
+    "publication_year": 2008,
+    "ratings_count": 4780653,
+    "title": "The Hunger Games"
 }
 
 */
